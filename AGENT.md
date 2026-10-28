@@ -11,6 +11,7 @@ Creare uno stack Docker completo per:
 - Accesso alle Web UI solo tramite rete Docker esterna chiamata `proxy-manager`
 - Cartelle media in italiano (`Film` e `Serie TV`)
 - Nomi cartelle film e serie che includono **sempre l'anno**
+- Supporto Cloudflare tramite **FlareSolverr** per massima compatibilità con gli indexer
 
 ## Servizi da installare
 
@@ -20,6 +21,7 @@ Creare uno stack Docker completo per:
 4. **sonarr** - Automazione serie TV
 5. **prowlarr** - Gestore indexer
 6. **jellyseerr** - Interfaccia richieste
+7. **flaresolverr** - Risolve i challenge Cloudflare degli indexer
 
 ## Struttura obbligatoria delle cartelle
 
@@ -107,7 +109,14 @@ Il file deve contenere esattamente questi servizi con queste caratteristiche:
 - Solo qBittorrent espone le porte `6881:6881` e `6881:6881/udp`
 - Volume Radarr: `${DATA_DIR}/media/Film:/movies`
 - Volume Sonarr: `${DATA_DIR}/media/Serie TV:/tv`
-- Tutti i servizi usano le variabili `${PUID}`, `${PGID}`, `${TZ}`
+- Tutti i servizi usano le variabili `${PUID}`, `${PGID}`, `${TZ}` dove applicabile
+- **FlareSolverr** obbligatorio:
+  - image: `ghcr.io/flaresolverr/flaresolverr:latest`
+  - container_name: `flaresolverr`
+  - expose: `8191`
+  - environment: `LOG_LEVEL=info`, `LOG_HTML=false`, `CAPTCHA_SOLVER=none`, `TZ=${TZ}`
+  - networks: `proxy-manager`
+  - Nessuna porta pubblicata sull'host e nessuna Web UI
 
 ### 4. Creare `.gitignore`
 
@@ -127,6 +136,8 @@ docker network create proxy-manager || true
 docker compose up -d
 ```
 
+Verificare che sia presente anche il container `flaresolverr` con `docker compose ps`.
+
 ## Configurazione post-avvio (istruzioni da dare all'utente in modo 100% esplicito)
 
 L'agent deve spiegare ogni passaggio senza mai scrivere frasi del tipo "stesso procedimento di..." o "ripeti i passi di...". Ogni servizio deve avere i propri passi completi e autonomi.
@@ -141,6 +152,26 @@ L'agent deve spiegare ogni passaggio senza mai scrivere frasi del tipo "stesso p
    - Cartella file incompleti: `/downloads/incomplete`
 5. Sezione Connessione: porta di ascolto `6881`.
 6. Salvare.
+
+### Prowlarr - parte indexer
+
+1. Settings → General → copiare l'API Key.
+2. Indexers → Add Indexer → aggiungere gli indexer desiderati.
+3. Per ogni indexer il Base URL è già compilato; se non funziona, scegliere un dominio alternativo dal menu a tendina.
+
+### Prowlarr - parte FlareSolverr (obbligatoria)
+
+1. Settings → Indexers → sezione FlareSolverr Servers.
+2. Cliccare **+** per aggiungere un server.
+3. Name: `FlareSolverr`
+4. Tags: creare il tag `flaresolverr`
+5. Host: `http://flaresolverr:8191`
+6. Test → deve essere verde → Save.
+7. Per ogni indexer che fallisce a causa di Cloudflare:
+   - Aprire l'indexer
+   - Nel campo Tags aggiungere `flaresolverr`
+   - Test → Save
+8. Non assegnare il tag agli indexer che funzionano già senza FlareSolverr.
 
 ### Radarr (Film) - naming con anno
 
@@ -185,19 +216,17 @@ L'agent deve spiegare ogni passaggio senza mai scrivere frasi del tipo "stesso p
     - Username e password di qBittorrent
 13. Test e Save.
 
-### Prowlarr
+### Prowlarr - collegamento alle app
 
-1. Settings → General → copiare l'API Key.
-2. Indexers → Add Indexer → aggiungere gli indexer desiderati.
-3. Settings → Apps → Add Application → Radarr:
+1. Settings → Apps → Add Application → Radarr:
    - Prowlarr Server: `http://prowlarr:9696`
    - Radarr Server: `http://radarr:7878`
    - API Key di Radarr
-4. Settings → Apps → Add Application → Sonarr:
+2. Settings → Apps → Add Application → Sonarr:
    - Prowlarr Server: `http://prowlarr:9696`
    - Sonarr Server: `http://sonarr:8989`
    - API Key di Sonarr
-5. Test e Save per entrambe le app. Eseguire Sync App Indexers se disponibile.
+3. Test e Save per entrambe le app. Eseguire Sync App Indexers se disponibile.
 
 ### Jellyseerr
 
@@ -226,14 +255,15 @@ L'agent deve spiegare ogni passaggio senza mai scrivere frasi del tipo "stesso p
 
 ## Porte interne (documentazione)
 
-| Servizio     | Hostname      | Porta |
-|--------------|---------------|-------|
-| jellyfin     | jellyfin      | 8096  |
-| qbittorrent  | qbittorrent   | 8080  |
-| radarr       | radarr        | 7878  |
-| sonarr       | sonarr        | 8989  |
-| prowlarr     | prowlarr      | 9696  |
-| jellyseerr   | jellyseerr    | 5055  |
+| Servizio     | Hostname      | Porta | Note                                      |
+|--------------|---------------|-------|-------------------------------------------|
+| jellyfin     | jellyfin      | 8096  | Web UI                                    |
+| qbittorrent  | qbittorrent   | 8080  | Web UI                                    |
+| radarr       | radarr        | 7878  | Web UI                                    |
+| sonarr       | sonarr        | 8989  | Web UI                                    |
+| prowlarr     | prowlarr      | 9696  | Web UI                                    |
+| jellyseerr   | jellyseerr    | 5055  | Web UI                                    |
+| flaresolverr | flaresolverr  | 8191  | Solo API interna, nessuna Web UI          |
 
 ## Vincoli importanti
 
@@ -244,6 +274,11 @@ L'agent deve spiegare ogni passaggio senza mai scrivere frasi del tipo "stesso p
   - Film: `{Movie Title} ({Release Year})`
   - Serie: `{Series Title} ({Series Year})`
 - Preferenza lingua italiana + minimo 1080p deve essere configurata tramite Quality Profile + Custom Formats sia su Radarr sia su Sonarr (passi completi e separati per ciascun servizio).
+- **FlareSolverr è obbligatorio** nello stack per massima compatibilità.
+- FlareSolverr non ha interfaccia web e non va aggiunto a Nginx Proxy Manager.
+- In Prowlarr, FlareSolverr si configura in Settings → Indexers con Host `http://flaresolverr:8191` e tag `flaresolverr`.
+- Il tag `flaresolverr` va assegnato solo agli indexer che falliscono a causa di Cloudflare.
+- Non serve installare Cloudflare sul server.
 - I file di configurazione generati (`config/`) e i media (`data/`) non devono essere versionati.
 - Nelle istruzioni all'utente non usare mai frasi del tipo "stesso procedimento di Radarr" o "ripeti i passaggi precedenti": ogni sezione deve essere autonoma e completa.
 
@@ -251,7 +286,7 @@ L'agent deve spiegare ogni passaggio senza mai scrivere frasi del tipo "stesso p
 
 Alla fine l'agent deve:
 1. Aver creato tutta la struttura di cartelle
-2. Aver scritto `docker-compose.yml`, `.env`, `.gitignore`, `README.md`, `AGENT.md`
+2. Aver scritto `docker-compose.yml` (con FlareSolverr incluso), `.env`, `.gitignore`, `README.md`, `AGENT.md`
 3. Aver creato la rete `proxy-manager` (se mancante)
-4. Aver avviato i container con `docker compose up -d`
-5. Aver fornito all'utente le istruzioni chiare, complete e senza riferimenti incrociati per la configurazione di ogni singola interfaccia
+4. Aver avviato i container con `docker compose up -d` (incluso flaresolverr)
+5. Aver fornito all'utente le istruzioni chiare, complete e senza riferimenti incrociati per la configurazione di ogni singola interfaccia, inclusa la configurazione di FlareSolverr dentro Prowlarr
