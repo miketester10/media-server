@@ -4,17 +4,19 @@ Stack Docker completo per gestire automaticamente **film** e **serie TV** con au
 
 ## Servizi inclusi
 
-| Servizio        | Cosa fa                                      | Porta interna |
-|-----------------|----------------------------------------------|---------------|
-| **Jellyfin**    | Media server (riproduzione)                  | 8096          |
-| **qBittorrent** | Client torrent (download)                    | 8080          |
-| **Radarr**      | Gestione automatica dei film                 | 7878          |
-| **Sonarr**      | Gestione automatica delle serie TV           | 8989          |
-| **Prowlarr**    | Gestore centralizzato degli indexer          | 9696          |
-| **Jellyseerr**  | Interfaccia per richiedere film e serie      | 5055          |
+| Servizio         | Cosa fa                                                                 | Porta interna |
+|------------------|-------------------------------------------------------------------------|---------------|
+| **Jellyfin**     | Media server (riproduzione)                                             | 8096          |
+| **qBittorrent**  | Client torrent (download)                                               | 8080          |
+| **Radarr**       | Gestione automatica dei film                                            | 7878          |
+| **Sonarr**       | Gestione automatica delle serie TV                                      | 8989          |
+| **Prowlarr**     | Gestore centralizzato degli indexer                                     | 9696          |
+| **Jellyseerr**   | Interfaccia per richiedere film e serie                                 | 5055          |
+| **FlareSolverr** | Risolve i controlli Cloudflare (“Non sono un robot”) degli indexer     | 8191          |
 
 Tutte le interfacce web sono accessibili **solo** attraverso la rete Docker chiamata `proxy-manager` (esempio: Nginx Proxy Manager).  
-Sull'host viene esposta **solo** la porta torrent di qBittorrent (`6881`).
+Sull'host viene esposta **solo** la porta torrent di qBittorrent (`6881`).  
+**FlareSolverr non ha interfaccia web**: lavora solo in background e non va aggiunto a Nginx Proxy Manager.
 
 ---
 
@@ -24,13 +26,15 @@ Sull'host viene esposta **solo** la porta torrent di qBittorrent (`6881`).
 2. Cerchi un film o una serie e clicchi **Request**.
 3. Jellyseerr invia la richiesta a **Radarr** (se è un film) oppure a **Sonarr** (se è una serie).
 4. Radarr o Sonarr chiedono a **Prowlarr** di cercare release **in italiano** e **minimo 1080p**.
-5. Prowlarr interroga gli indexer che hai configurato e restituisce i risultati.
-6. Radarr o Sonarr scelgono la release migliore e la mandano a **qBittorrent**.
-7. qBittorrent scarica il file dentro la cartella `data/downloads/completed`.
-8. Quando il download è finito:
-   - **Radarr** crea la cartella `Film/Nome Film (Anno)/` e rinomina il file.
-   - **Sonarr** crea la cartella `Serie TV/Nome Serie (Anno)/Season 01/` e rinomina gli episodi.
-9. **Jellyfin** vede i nuovi file e li rende disponibili per la visione.
+5. Prowlarr interroga gli indexer che hai configurato.
+6. Se un indexer è protetto da Cloudflare, Prowlarr chiede aiuto a **FlareSolverr**, che supera il controllo “Non sono un robot”.
+7. Prowlarr restituisce i risultati a Radarr o Sonarr.
+8. Radarr o Sonarr scelgono la release migliore e la mandano a **qBittorrent**.
+9. qBittorrent scarica il file dentro la cartella `data/downloads/completed`.
+10. Quando il download è finito:
+    - **Radarr** crea la cartella `Film/Nome Film (Anno)/` e rinomina il file.
+    - **Sonarr** crea la cartella `Serie TV/Nome Serie (Anno)/Season 01/` e rinomina gli episodi.
+11. **Jellyfin** vede i nuovi file e li rende disponibili per la visione.
 
 Dopo la configurazione iniziale tutto avviene in automatico.
 
@@ -160,7 +164,7 @@ Salva e chiudi il file.
 docker compose up -d
 ```
 
-Attendi qualche secondo. Controlla che siano tutti avviati:
+Attendi qualche secondo. Controlla che siano tutti avviati (deve comparire anche `flaresolverr`):
 
 ```bash
 docker compose ps
@@ -168,7 +172,9 @@ docker compose ps
 
 ### Passo 6 - Configura Nginx Proxy Manager (o il tuo reverse proxy)
 
-Crea un **Proxy Host** per ogni servizio.  
+Crea un **Proxy Host** per ogni servizio che ha interfaccia web.  
+**Non** creare un Proxy Host per FlareSolverr (non ha interfaccia web).
+
 Usa questi valori:
 
 | Servizio     | Hostname interno (nel campo Forward Hostname / IP) | Porta | Esempio dominio da usare        |
@@ -209,6 +215,8 @@ Segui **esattamente** l'ordine qui sotto. Non saltare passaggi.
 
 ### 2. Configurazione di Prowlarr
 
+#### 2.1 API Key e indexer di base
+
 1. Apri nel browser l'indirizzo di Prowlarr (esempio: `https://prowlarr.tuodominio.com`).
 2. Vai su **Settings** (icona ingranaggio) → **General**.
 3. Nella sezione **Security** trova il campo **API Key**.
@@ -217,9 +225,43 @@ Segui **esattamente** l'ordine qui sotto. Non saltare passaggi.
 6. Clicca **+ Add Indexer**.
 7. Cerca e aggiungi gli indexer che vuoi usare.
 8. Per ogni indexer che aggiungi:
+   - Il campo **Base URL** è già compilato. Se non funziona, scegli un dominio alternativo dal menu a tendina.
    - Imposta una **Priority** più alta (numero più basso = priorità maggiore) per quelli che di solito hanno buone release in italiano.
    - Salva l'indexer.
 9. Per ora non collegare ancora Radarr e Sonarr: lo faremo dopo averli configurati.
+
+#### 2.2 Configurazione di FlareSolverr (obbligatoria per massima compatibilità)
+
+Molti indexer mostrano il controllo Cloudflare (“Verifica che sei un umano” / “Non sono un robot”).  
+Prowlarr da solo non può superare quel controllo. **FlareSolverr** lo fa al posto suo.
+
+1. In Prowlarr vai su **Settings** (icona ingranaggio) → **Indexers**.
+2. Scorri verso il basso fino alla sezione **FlareSolverr Servers** (o **FlareSolverr**).
+3. Clicca il pulsante **+** per aggiungere un server FlareSolverr.
+4. Compila i campi così:
+   - **Name**: `FlareSolverr`
+   - **Tags**: scrivi la parola `flaresolverr` e premi Invio sulla tastiera (così crei il tag)
+   - **Host**: `http://flaresolverr:8191`
+5. Clicca **Test**. Deve diventare verde / successo.
+6. Clicca **Save**.
+
+#### 2.3 Assegnare FlareSolverr agli indexer protetti da Cloudflare
+
+1. Vai su **Indexers** (menu a sinistra).
+2. Apri un indexer (clicca sul nome o sull'icona di modifica).
+3. Nel campo **Tags** aggiungi il tag `flaresolverr` (quello creato al punto precedente).
+4. Clicca **Test** sull'indexer.
+5. Se il test diventa verde, clicca **Save**.
+6. Se il test è ancora rosso:
+   - Prova a cambiare il **Base URL** scegliendo un altro dominio dal menu a tendina.
+   - Ripeti il Test.
+7. Ripeti i punti da 2 a 6 per **ogni** indexer che fallisce a causa di Cloudflare.
+
+**Regola pratica:**
+- Test verde **senza** tag `flaresolverr` → lascia senza tag.
+- Test rosso / errore Cloudflare → aggiungi il tag `flaresolverr` e riprova.
+
+Non è obbligatorio mettere il tag su tutti gli indexer: solo su quelli che ne hanno bisogno.
 
 ---
 
@@ -493,6 +535,12 @@ Risultato: ogni serie avrà una cartella del tipo `Breaking Bad (2008)/Season 01
    ```
 7. Apri **Jellyfin**: la serie deve apparire nella libreria Serie TV.
 
+### Test FlareSolverr (opzionale ma consigliato)
+
+1. In Prowlarr apri un indexer a cui hai assegnato il tag `flaresolverr`.
+2. Clicca **Test**.
+3. Se diventa verde, FlareSolverr sta funzionando correttamente.
+
 ---
 
 ## Comandi utili
@@ -514,6 +562,9 @@ docker compose logs -f radarr
 # Vedere i log di Sonarr
 docker compose logs -f sonarr
 
+# Vedere i log di FlareSolverr
+docker compose logs -f flaresolverr
+
 # Vedere lo stato dei container
 docker compose ps
 ```
@@ -527,3 +578,5 @@ docker compose ps
 - Cambia sempre `PUID` e `PGID` nel file `.env` con i valori del tuo utente di sistema.
 - La rete Docker `proxy-manager` deve esistere **prima** di avviare `docker compose up -d`.
 - I nomi delle cartelle dei film e delle serie includono **sempre l'anno** grazie alle impostazioni di naming di Radarr e Sonarr.
+- **FlareSolverr non ha interfaccia web**: non va aggiunto a Nginx Proxy Manager. Si collega solo dentro Prowlarr.
+- Non serve installare Cloudflare sul server. Cloudflare è solo la protezione usata da alcuni siti; FlareSolverr la supera automaticamente.
