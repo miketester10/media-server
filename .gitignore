@@ -1,0 +1,35 @@
+###############################
+# MEDIA SERVER - .gitignore
+###############################
+
+# =========================
+# Configurazioni generate
+# =========================
+config/**/*
+!config/**/.gitkeep
+
+# =========================
+# Dati pesanti / media
+# =========================
+data/downloads/**/*
+!data/downloads/.gitkeep
+!data/downloads/incomplete/.gitkeep
+!data/downloads/completed/.gitkeep
+
+data/media/**/*
+!data/media/Film/.gitkeep
+!data/media/Serie\ TV/.gitkeep
+
+# =========================
+# File di sistema
+# =========================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.temp
+
+# =========================
+# Environment (opzionale)
+# =========================
+# .env
