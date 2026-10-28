@@ -135,6 +135,25 @@ services:
     networks:
       - proxy-manager
 
+  # ==================================================
+  # FLARESOLVERR
+  # Risolve i controlli Cloudflare dei siti indexer.
+  # Serve a Prowlarr quando un sito chiede "Non sono un robot".
+  # ==================================================
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=${TZ}
+    expose:
+      - "8191"                               # API interna (niente Web UI da esporre)
+    networks:
+      - proxy-manager
+
 ###############################
 # RETE
 ###############################
