@@ -1,0 +1,143 @@
+###############################
+# MEDIA SERVER - Docker Compose
+# Rete esterna: proxy-manager
+# Nessuna Web UI esposta sull'host (solo tramite reverse proxy)
+# Cartelle media in italiano: Film / Serie TV
+###############################
+
+services:
+
+  # ==================================================
+  # JELLYFIN
+  # Media server principale.
+  # Organizza, scansiona e trasmette film e serie TV.
+  # ==================================================
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    user: "${PUID}:${PGID}"
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_DIR}/jellyfin:/config
+      - ${DATA_DIR}/media:/media:ro          # Libreria in sola lettura
+    expose:
+      - "8096"                               # Web UI
+    networks:
+      - proxy-manager
+
+  # ==================================================
+  # QBITTORRENT
+  # Client torrent.
+  # Scarica i file richiesti da Radarr e Sonarr.
+  # ==================================================
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=8080
+    volumes:
+      - ${CONFIG_DIR}/qbittorrent:/config
+      - ${DATA_DIR}/downloads:/downloads
+    ports:
+      - "6881:6881"                          # Porta torrent TCP (deve essere pubblica)
+      - "6881:6881/udp"                      # Porta torrent UDP
+    expose:
+      - "8080"                               # Web UI
+    networks:
+      - proxy-manager
+
+  # ==================================================
+  # RADARR
+  # Gestione automatica dei film.
+  # Cerca, scarica, rinomina e organizza i film.
+  # ==================================================
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_DIR}/radarr:/config
+      - ${DATA_DIR}/downloads:/downloads
+      - ${DATA_DIR}/media/Film:/movies        # Cartella film (host → container)
+    expose:
+      - "7878"                               # Web UI
+    networks:
+      - proxy-manager
+
+  # ==================================================
+  # SONARR
+  # Gestione automatica delle serie TV.
+  # Cerca, scarica, rinomina e organizza le serie.
+  # ==================================================
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_DIR}/sonarr:/config
+      - ${DATA_DIR}/downloads:/downloads
+      - ${DATA_DIR}/media/Serie TV:/tv        # Cartella serie (host → container)
+    expose:
+      - "8989"                               # Web UI
+    networks:
+      - proxy-manager
+
+  # ==================================================
+  # PROWLARR
+  # Gestore centralizzato degli indexer.
+  # Sincronizza gli indexer con Radarr e Sonarr.
+  # ==================================================
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_DIR}/prowlarr:/config
+    expose:
+      - "9696"                               # Web UI
+    networks:
+      - proxy-manager
+
+  # ==================================================
+  # JELLYSEERR
+  # Interfaccia per richiedere film e serie.
+  # Invia le richieste a Radarr e Sonarr.
+  # ==================================================
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_DIR}/jellyseerr:/app/config
+    expose:
+      - "5055"                               # Web UI
+    networks:
+      - proxy-manager
+
+###############################
+# RETE
+###############################
+networks:
+  proxy-manager:
+    external: true
