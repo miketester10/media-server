@@ -21,16 +21,15 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_DIR}/jellyfin:/config
-      - ${DATA_DIR}/media:/media:ro          # Libreria in sola lettura
+      - ${DATA_DIR}/media:/media:ro
     expose:
-      - "8096"                               # Web UI
+      - "8096"
     networks:
       - proxy-manager
 
   # ==================================================
   # QBITTORRENT
   # Client torrent.
-  # Scarica i file richiesti da Radarr e Sonarr.
   # ==================================================
   qbittorrent:
     image: linuxserver/qbittorrent:latest
@@ -45,17 +44,16 @@ services:
       - ${CONFIG_DIR}/qbittorrent:/config
       - ${DATA_DIR}/downloads:/downloads
     ports:
-      - "6881:6881"                          # Porta torrent TCP (deve essere pubblica)
-      - "6881:6881/udp"                      # Porta torrent UDP
+      - "6881:6881"
+      - "6881:6881/udp"
     expose:
-      - "8080"                               # Web UI
+      - "8080"
     networks:
       - proxy-manager
 
   # ==================================================
   # RADARR
   # Gestione automatica dei film.
-  # Cerca, scarica, rinomina e organizza i film.
   # ==================================================
   radarr:
     image: lscr.io/linuxserver/radarr:latest
@@ -68,16 +66,15 @@ services:
     volumes:
       - ${CONFIG_DIR}/radarr:/config
       - ${DATA_DIR}/downloads:/downloads
-      - ${DATA_DIR}/media/Film:/movies        # Cartella film (host → container)
+      - ${DATA_DIR}/media/Film:/movies
     expose:
-      - "7878"                               # Web UI
+      - "7878"
     networks:
       - proxy-manager
 
   # ==================================================
   # SONARR
   # Gestione automatica delle serie TV.
-  # Cerca, scarica, rinomina e organizza le serie.
   # ==================================================
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
@@ -90,16 +87,15 @@ services:
     volumes:
       - ${CONFIG_DIR}/sonarr:/config
       - ${DATA_DIR}/downloads:/downloads
-      - ${DATA_DIR}/media/Serie TV:/tv        # Cartella serie (host → container)
+      - ${DATA_DIR}/media/Serie TV:/tv
     expose:
-      - "8989"                               # Web UI
+      - "8989"
     networks:
       - proxy-manager
 
   # ==================================================
   # PROWLARR
   # Gestore centralizzato degli indexer.
-  # Sincronizza gli indexer con Radarr e Sonarr.
   # ==================================================
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -112,15 +108,13 @@ services:
     volumes:
       - ${CONFIG_DIR}/prowlarr:/config
     expose:
-      - "9696"                               # Web UI
+      - "9696"
     networks:
       - proxy-manager
 
   # ==================================================
   # SEERR
   # Interfaccia per richiedere film e serie.
-  # Invia le richieste a Radarr e Sonarr.
-  # Supporta Jellyfin (e altri media server).
   # ==================================================
   seerr:
     image: ghcr.io/seerr-team/seerr:latest
@@ -132,14 +126,13 @@ services:
     volumes:
       - ${CONFIG_DIR}/seerr:/app/config
     expose:
-      - "5055"                               # Web UI
+      - "5055"
     networks:
       - proxy-manager
 
   # ==================================================
   # FLARESOLVERR
-  # Risolve i controlli Cloudflare dei siti indexer.
-  # Serve a Prowlarr quando un sito chiede "Non sono un robot".
+  # Risolve i controlli Cloudflare degli indexer.
   # ==================================================
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -151,7 +144,24 @@ services:
       - CAPTCHA_SOLVER=none
       - TZ=${TZ}
     expose:
-      - "8191"                               # API interna (niente Web UI da esporre)
+      - "8191"
+    networks:
+      - proxy-manager
+
+  # ==================================================
+  # VIOLARR (ICVDB Torznab)
+  # Indexer self-hosted orientato ai contenuti italiani.
+  # Si collega a Prowlarr come Torznab.
+  # Docs: https://xbit18.github.io/violarr/
+  # ==================================================
+  violarr:
+    image: ghcr.io/xbit18/violarr:latest
+    container_name: icvdb-torznab
+    restart: unless-stopped
+    volumes:
+      - ${CONFIG_DIR}/violarr:/data
+    expose:
+      - "8000"
     networks:
       - proxy-manager
 
