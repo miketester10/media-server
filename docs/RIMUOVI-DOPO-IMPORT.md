@@ -1,156 +1,150 @@
-# Rimuovere automaticamente i file da qBittorrent dopo l'import
+# Rimuovere i file dopo il download (qBittorrent)
 
-Obiettivo: quando Radarr o Sonarr hanno importato il film/episodio in `media/Film` o `media/Serie TV`, **cancellare da qBittorrent** torrent + file in `downloads`.
+## Importante (leggi prima)
 
-Così non seedi (o seedi pochissimo) e non accumuli file doppi in download.
+**Chi cancella torrent e file da `downloads` è qBittorrent**, non Radarr/Sonarr.
 
----
+Nelle versioni recenti di Radarr:
 
-## Prima di iniziare
+- **Completed Download Handling → Enable** = importa il film in `media/Film`
+- **Remove Completed** sul client = toglie il download dalla *history* del client
+- **Non** è affidabile per cancellare i file dal disco dopo un torrent
 
-1. Radarr e Sonarr devono già essere collegati a qBittorrent (Test verde).
-2. Le categorie consigliate:
-   - Radarr → category `radarr`
-   - Sonarr → category `sonarr`
-3. Non cancellare a mano i torrent **prima** che l'import sia completato (History / Activity verdi).
+Per eliminare davvero **torrent + file** da `data/downloads` usi i **Seeding Limits** di qBittorrent.
 
----
+Ordine corretto:
 
-## Parte A – Radarr (film)
-
-### Passo 1 – Apri Radarr
-Apri nel browser l'indirizzo di Radarr.
-
-### Passo 2 – Download Clients
-1. Clicca **Settings** (ingranaggio).
-2. Clicca **Download Clients**.
-
-### Passo 3 – Apri qBittorrent
-Nella lista clicca sul client **qBittorrent** (quello che usi già).
-
-### Passo 4 – Completed Download Handling
-Nella finestra di modifica cerca la sezione **Completed Download Handling** (o opzioni simili sul client).
-
-Imposta così:
-
-| Opzione | Valore |
-|---------|--------|
-| **Enable** (Completed Download Handling) | **ON** (attivo) |
-| **Remove** | **ON** (attivo) |
-
-Significato:
-- **Enable** = Radarr gestisce i download completati (import automatico).
-- **Remove** = dopo un import riuscito, Radarr chiede a qBittorrent di **rimuovere il torrent e i file** dalla cartella download.
-
-### Passo 5 – Controlla categoria e path
-Verifica ancora:
-
-- Host: `qbittorrent`
-- Port: `8080`
-- Category: `radarr`
-- Username / Password: quelli di qBittorrent
-
-### Passo 6 – Test e Save
-1. Clicca **Test** → deve essere verde.
-2. Clicca **Save**.
-
-### Passo 7 (consigliato) – Media Management
-1. Settings → **Media Management**
-2. Se usi hardlink sullo stesso disco: **Use Hardlinks instead of Copy** = ON  
-   (se poi Remove cancella il path in downloads, in `media/Film` il file resta comunque se era hardlink o se era già stato copiato/spostato correttamente).
-3. **Import Extra Files** = ON, estensioni: `srt,sub,idx,nfo,txt`
-4. Save
+1. qBittorrent **scarica**
+2. Radarr/Sonarr **importano** in `media/Film` o `Serie TV`
+3. Dopo pochi minuti qBittorrent **cancella** torrent e file in downloads
+4. Il film/episodio **resta** nella cartella media
 
 ---
 
-## Parte B – Sonarr (serie TV)
+## Parte A – Impostazione in qBittorrent (obbligatoria)
 
-### Passo 1 – Apri Sonarr
-Apri nel browser l'indirizzo di Sonarr.
+### Passo 1 – Apri qBittorrent
+Apri nel browser l’interfaccia web di qBittorrent.
 
-### Passo 2 – Download Clients
-1. Clicca **Settings**.
-2. Clicca **Download Clients**.
+### Passo 2 – Impostazioni
+Clicca l’**ingranaggio** (Options / Impostazioni).
 
-### Passo 3 – Apri qBittorrent
-Clicca sul client **qBittorrent**.
+### Passo 3 – Sezione BitTorrent
+Nel menu a sinistra (o in alto) apri **BitTorrent**.
 
-### Passo 4 – Completed Download Handling
-Stesse impostazioni di Radarr:
+### Passo 4 – Seeding Limits
+Scorri fino a **Seeding Limits**.
 
-| Opzione | Valore |
-|---------|--------|
-| **Enable** (Completed Download Handling) | **ON** |
-| **Remove** | **ON** |
+Vedrai qualcosa di simile a:
 
-### Passo 5 – Controlla categoria
-- Host: `qbittorrent`
-- Port: `8080`
-- Category: `sonarr`
-- Username / Password corretti
+- When ratio reaches
+- When total seeding time reaches
+- When inactive seeding time reaches
+- then → menu a tendina (`Stop torrent`, ecc.)
 
-### Passo 6 – Test e Save
-1. **Test** → verde
-2. **Save**
+### Passo 5 – Valori da impostare
 
-### Passo 7 (consigliato) – Media Management
-1. Settings → **Media Management**
-2. Use Hardlinks instead of Copy = ON (se stesso filesystem)
-3. Import Extra Files = ON → `srt,sub,idx,nfo,txt`
-4. Save
+1. **Non** spuntare “When ratio reaches” (lascialo spento), oppure lascialo com’è se non ti interessa.
+2. **Spunta** la casella **When total seeding time reaches**.
+3. Nel campo numerico accanto scrivi **`5`** (significa 5 minuti).
+4. **Non** spuntare “When inactive seeding time reaches” (opzionale: lascialo spento).
+5. Nel menu **then** scegli una di queste voci (dipende dalla lingua):
+   - **Remove torrent and files**
+   - **Rimuovi torrent e file**
+   - **Delete torrent and files**
 
----
+   **Non** lasciare `Stop torrent` / `Ferma torrent`: quello ferma solo il seed e **non** cancella i file.
 
-## Parte C – qBittorrent (opzionale ma utile)
+### Passo 6 – Salva
+Clicca **Save** / **Salva** / **OK** in fondo alla finestra.
 
-Non è obbligatorio, ma evita confusione:
+### Riepilogo valori
 
-1. Apri qBittorrent
-2. Impostazioni → **BitTorrent** (o Download)
-3. Puoi lasciare il seed libero: tanto Radarr/Sonarr rimuoveranno il torrent dopo l'import
-4. Assicurati che le cartelle siano ancora:
-   - Completati: `/downloads/completed` (o `/data/downloads/completed` se usi mount unificato)
-   - Incompleti: `/downloads/incomplete`
+| Campo | Valore |
+|-------|--------|
+| When total seeding time reaches | **spuntato**, valore **5** minuti |
+| then | **Remove torrent and files** |
 
-Non attivare “elimina torrent all’arrivo al ratio” in conflitto con Radarr se non sai cosa fai: lascia che **Remove** di Radarr/Sonarr faccia il lavoro dopo l’import.
+Perché 5 minuti e non 0?  
+Radarr/Sonarr devono avere tempo di **importare** il file in `media/` prima che qBittorrent lo cancelli. Con 5 minuti di solito l’import è già finito. Se vedi che a volte cancella troppo presto, alza a **10** minuti.
 
 ---
 
-## Parte D – Test completo
+## Parte B – Cosa lasciare in Radarr (necessario ma non cancella i file)
 
-### Test film
-1. Da **Seerr** (o da Radarr) richiedi/aggiungi un film di prova.
-2. In **qBittorrent** deve comparire un torrent con categoria `radarr`.
-3. Attendi fine download.
-4. In **Radarr** → Activity / History: deve risultare **Imported**.
-5. Controlla sul disco: esiste `data/media/Film/Nome Film (Anno)/...`
-6. Dopo poco, in **qBittorrent** il torrent **scompare** e i file sotto `downloads/completed` relativi a quel film non ci sono più.
+Radarr deve solo **importare**. Non affidarti a Radarr per svuotare `downloads`.
 
-### Test serie
-1. Richiedi una serie / episodio.
-2. Categoria qBit: `sonarr`
-3. Dopo import in `data/media/Serie TV/Nome (Anno)/Season XX/`
-4. Il torrent viene rimosso da qBittorrent.
+### Passo 1
+Apri **Radarr** → **Settings** → **Download Clients**.
 
-Se il file è in `media/` ma il torrent resta in qBit:
-- ricontrolla che **Remove** sia ON
-- ricontrolla Test del download client
-- guarda Radarr/Sonarr → System → Logs per errori di rimozione
+### Passo 2
+Nella sezione **Completed Download Handling**:
 
----
+- **Enable** = **spuntato**  
+  (“Automatically import completed downloads from download client”)
 
-## Cosa non fa questa guida
+### Passo 3
+Clicca il riquadro **qBittorrent**.
 
-- **Cleanuparr** non è necessario solo per “rimuovi dopo import”. Serve se vuoi anche pulire download bloccati, malware, code ferme.
-- Seed prolungato: con **Remove = ON** non tieni i torrent a seedare a lungo.
+### Passo 4
+Se vedi **Remove Completed** e **Remove Failed**, lasciali **spuntati** (puliscono la history; non sostituiscono i Seeding Limits).
+
+### Passo 5
+Category: `radarr` · Test verde · **Save**.
 
 ---
 
-## Riepilogo
+## Parte C – Cosa lasciare in Sonarr
 
-| App | Dove | Cosa attivare |
-|-----|------|----------------|
-| Radarr | Settings → Download Clients → qBittorrent | Completed Download Handling **ON**, Remove **ON** |
-| Sonarr | Settings → Download Clients → qBittorrent | Completed Download Handling **ON**, Remove **ON** |
+### Passo 1
+Apri **Sonarr** → **Settings** → **Download Clients**.
 
-Ordine: **download → import in media → cancellazione da qBittorrent**.
+### Passo 2
+**Completed Download Handling → Enable** = **spuntato**.
+
+### Passo 3
+Apri **qBittorrent** → Category `sonarr` → Remove Completed/Failed spuntati se presenti → **Test** → **Save**.
+
+---
+
+## Parte D – Test passo-passo
+
+### Film
+1. Richiedi un film da Seerr (o Interactive Search in Radarr).
+2. In qBittorrent compare il torrent (categoria `radarr`).
+3. Aspetta la fine del download.
+4. In Radarr → History: deve comparire **Imported**.
+5. Sul disco deve esistere:  
+   `data/media/Film/Nome Film (Anno)/file.mkv`
+6. Aspetta **5–10 minuti**.
+7. In qBittorrent il torrent **scompare**.
+8. In `data/downloads/completed` i file di quel film **non ci sono più**.
+9. In `data/media/Film/...` il file **c’è ancora**.
+
+### Serie
+Stesso schema con categoria `sonarr` e cartella  
+`data/media/Serie TV/Nome (Anno)/Season XX/`.
+
+---
+
+## Se qualcosa va storto
+
+| Problema | Cosa controllare |
+|----------|------------------|
+| Il torrent resta in qBit per sempre | Seeding Limits non salvati; “then” è ancora `Stop torrent` |
+| Sparisce anche il file in `media/Film` | L’import non era finito prima della cancellazione → alza il tempo a **10** minuti; verifica History = Imported |
+| Non importa in media | Completed Download Handling Enable OFF; path sbagliati; categoria diversa da `radarr`/`sonarr` |
+| Nella tendina non c’è “Remove torrent and files” | Aggiorna qBittorrent; cerca voci tipo “Delete files” / “Rimuovi con file” |
+
+---
+
+## Cosa non serve per questo obiettivo
+
+- **Cleanuparr**: utile per code bloccate/malware, non obbligatorio solo per “svuota downloads dopo import”.
+- Cercare altre opzioni nascoste in Radarr: nella UI recente **non ci sono** seed ratio/time sul client che cancellano i file come qBittorrent.
+
+---
+
+## Riepilogo in una frase
+
+**Radarr/Sonarr importano. qBittorrent (Seeding Limits → dopo 5 minuti → Remove torrent and files) cancella da downloads.**
