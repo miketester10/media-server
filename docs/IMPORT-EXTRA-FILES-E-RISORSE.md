@@ -1,63 +1,30 @@
-# Import Extra Files + risorse utili
+# Import Extra Files + risorse
 
-## Import Extra Files (sottotitoli e file extra)
+## Import Extra Files
 
-Attivare **sia in Radarr sia in Sonarr**.
+In **Radarr** e **Sonarr** → Settings → Media Management:
 
-| Estensione | Uso |
-|------------|-----|
-| `.srt` | Sottotitoli testo (i più comuni) |
-| `.sub` | Sottotitoli |
-| `.idx` | Indice spesso insieme a `.sub` |
-| `.nfo` | Info release |
-| `.txt` | Note |
+- Import Extra Files: **ON**
+- Estensioni: `srt,sub,idx,nfo,txt`
 
-### Radarr
-
-1. Settings → Media Management
-2. Import Extra Files: **ON**
-3. Estensioni: `srt,sub,idx,nfo,txt`
-4. Save
-
-### Sonarr
-
-1. Settings → Media Management
-2. Import Extra Files: **ON**
-3. Estensioni: `srt,sub,idx,nfo,txt`
-4. Save
-
-### Import Extra Files vs Bazarr
-
-- **Import Extra Files** = tiene i sottotitoli già presenti nel download
-- **Bazarr** = scarica i sottotitoli se mancano (servizio opzionale da aggiungere dopo)
-
----
-
-## Custom Format regex (italiano, case-insensitive)
-
-Usare in Radarr e Sonarr:
-
-**Italiano** (score +100):
+## Custom Format regex (solo italiano)
 
 ```regex
-(?i)\b(ita|italian|italiano|subita|multi)\b
+(?i)\b(ita|italian|italiano|subita)\b
 ```
 
-**Non Italiano** (score -200):
+Score +100. **Senza** `multi`.
+
+Non Italiano:
 
 ```regex
 (?i)\b(eng|english)\b
 ```
 
-Il prefisso `(?i)` rende la ricerca **case-insensitive** (ita = ITA = Italiano = MULTI, ecc.).
-
-`MULTI` spesso indica dual audio. Per solo italiano “puro” togliere `multi` dalla regex.
-
----
+Score -200.
 
 ## Video guida
 
 https://youtu.be/-PQtE6Nb0Cw
 
-Risorsa di supporto con spiegazioni sullo stack ARR / media server.  
-Questo repository usa **Jellyfin** + **Seerr** per richieste e riproduzione.
+Vedi anche `docs/VIOLARR-E-REGEX.md` per Violarr.
