@@ -117,19 +117,22 @@ services:
       - proxy-manager
 
   # ==================================================
-  # JELLYSEERR
+  # SEERR
   # Interfaccia per richiedere film e serie.
-  # Invia le richieste a Radarr e Sonarr.
+  # Successore ufficiale di Jellyseerr e Overseerr (merge 2026).
+  # Supporta Jellyfin, Plex e Emby. Invia richieste a Radarr e Sonarr.
   # ==================================================
-  jellyseerr:
-    image: fallenbagel/jellyseerr:latest
-    container_name: jellyseerr
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: seerr
     restart: unless-stopped
     environment:
       - LOG_LEVEL=info
       - TZ=${TZ}
     volumes:
-      - ${CONFIG_DIR}/jellyseerr:/app/config
+      # Se migri da Jellyseerr, puoi montare la vecchia cartella config:
+      # - ${CONFIG_DIR}/jellyseerr:/app/config
+      - ${CONFIG_DIR}/seerr:/app/config
     expose:
       - "5055"                               # Web UI
     networks:
