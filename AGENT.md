@@ -1,148 +1,67 @@
 # AGENT.md – Replica dello stack media-server
 
-Istruzioni per qualsiasi LLM/agent che deve **ricreare o aggiornare** questo progetto.
-
-La guida utente completa e passo-passo (a prova di principiante) è solo in:
-
-**[README.md](README.md)**
-
-Quando spieghi qualcosa a un umano, **segui l’ordine del README** e non riassumere con “stesso procedimento di…”. Ogni servizio ha passi propri e completi.
+Guida utente completa: **[README.md](README.md)**  
+Non riassumere con “stesso procedimento di…”.
 
 ---
 
-## Obiettivo dello stack
+## Obiettivo
 
-- Film e serie TV automatici
-- Preferenza **italiano** (Custom Format, senza `MULTI`)
-- Qualità minima **1080p**
-- Cartelle `Film` / `Serie TV` con **anno** nel nome
-- Web UI solo su rete Docker esterna **`proxy-manager`** (`expose`, non `ports` per le UI)
-- Dopo l’import: **rimozione** torrent da qBittorrent (Completed Download Handling + Remove)
-- Indexer italiani prioritari: Violarr (ICVDB) > Il Corsaro Blu > 1337x
+- Film/serie automatici, italiano (CF senza `MULTI`), min 1080p
+- Cartelle `Film` / `Serie TV` con **anno**
+- UI solo su rete `proxy-manager` (`expose`)
+- **Pulizia downloads: qBittorrent Seeding Limits**, non Radarr
+- Indexer priority: Violarr 5 > CorsaroBlu 10 > 1337x 25
 
 ---
 
-## Servizi Docker (obbligatori)
+## Servizi
 
-| Servizio | Image | container_name | Porta expose |
-|----------|--------|----------------|--------------|
-| jellyfin | jellyfin/jellyfin:latest | jellyfin | 8096 |
-| qbittorrent | linuxserver/qbittorrent:latest | qbittorrent | 8080 (+ ports 6881) |
-| radarr | lscr.io/linuxserver/radarr:latest | radarr | 7878 |
-| sonarr | lscr.io/linuxserver/sonarr:latest | sonarr | 8989 |
-| prowlarr | lscr.io/linuxserver/prowlarr:latest | prowlarr | 9696 |
-| seerr | ghcr.io/seerr-team/seerr:latest | seerr | 5055 |
-| flaresolverr | ghcr.io/flaresolverr/flaresolverr:latest | flaresolverr | 8191 |
-| violarr | ghcr.io/xbit18/violarr:latest | **icvdb-torznab** | 8000 |
-
-Rete: `proxy-manager` external.
-
-Volume media:
-- Radarr: `${DATA_DIR}/media/Film:/movies`
-- Sonarr: `${DATA_DIR}/media/Serie TV:/tv`
-- qBittorrent: `${DATA_DIR}/downloads:/downloads`
-- Violarr: `${CONFIG_DIR}/violarr:/data`
+jellyfin, qbittorrent, radarr, sonarr, prowlarr, seerr, flaresolverr, violarr (`icvdb-torznab`)
 
 ---
 
-## Struttura cartelle da creare
+## Valori fissi
 
-```text
-media-server/
-  docker-compose.yml
-  .env
-  .gitignore
-  README.md
-  AGENT.md
-  docs/
-  config/{jellyfin,qbittorrent,radarr,sonarr,prowlarr,seerr,violarr}/
-  data/downloads/{incomplete,completed}/
-  data/media/Film/
-  data/media/Serie TV/
-```
+### Regex
 
----
-
-## Valori di configurazione “scritti nella pietra”
-
-### Regex Custom Format
-
-- Italiano (+100): `(?i)\b(ita|italian|italiano|subita)\b`
-- Non Italiano (-200): `(?i)\b(eng|english)\b`
-- **Mai** includere `multi`
+- Italiano +100: `(?i)\b(ita|italian|italiano|subita)\b`
+- Non Italiano -200: `(?i)\b(eng|english)\b`
+- Mai `multi`
 
 ### Naming
 
-- Film folder/file: `{Movie Title} ({Release Year})`
-- Serie folder: `{Series Title} ({Series Year})`
-- Season: `Season {season:00}`
-- Episode: `{Series Title} - S{season:00}E{episode:00} - {Episode Title}`
+- Film: `{Movie Title} ({Release Year})`
+- Serie: `{Series Title} ({Series Year})` / `Season {season:00}`
 
 ### Import Extra Files
 
 `srt,sub,idx,nfo,txt`
 
-### Priorità indexer
+### qBittorrent – eliminazione file (fonte di verità)
 
-| Indexer | Priority |
-|---------|----------|
-| Violarr | 5 |
-| Il Corsaro Blu | 10 |
-| 1337x | 25 |
+Impostazioni → **BitTorrent** → **Seeding Limits**:
 
-Poi **Sync App Indexers** da Prowlarr verso Radarr e verso Sonarr (passi separati e completi).
+- When total seeding time reaches = **ON**, valore **5** minuti
+- then = **Remove torrent and files** (non `Stop torrent`)
 
-### Violarr → Prowlarr
+Radarr/Sonarr: solo **Completed Download Handling → Enable = ON** (import).  
+Remove Completed sul client Radarr **non** sostituisce i Seeding Limits.
 
-- URL Prowlarr: `http://prowlarr:9696`
-- URL indexer: `http://icvdb-torznab:8000/api`
+Dettaglio utente: `docs/RIMUOVI-DOPO-IMPORT.md`
 
-### FlareSolverr in Prowlarr
+### Altro
 
-- Host: `http://flaresolverr:8191`
-- Tag: `flaresolverr` solo sugli indexer che falliscono Cloudflare
-
-### qBittorrent path
-
-- Completed: `/downloads/completed`
-- Incomplete: `/downloads/incomplete`
+- Path qBit: `/downloads/completed`, `/downloads/incomplete`
 - Categorie: `radarr` / `sonarr`
-
-### Remove dopo import
-
-Su **entrambi** Radarr e Sonarr, client qBittorrent:
-
-- Completed Download Handling = ON
-- Remove = ON
-
-### Seerr
-
-- Jellyfin `http://jellyfin:8096`
-- Radarr `http://radarr:7878`, root `/movies`, profile `Italiano 1080p`
-- Sonarr `http://sonarr:8989`, root `/tv`, profile `Italiano 1080p`
-
-### Jellyfin libraries
-
-- Film → `/media/Film`
-- Serie TV → `/media/Serie TV`
+- FlareSolverr: `http://flaresolverr:8191`, tag `flaresolverr`
+- Violarr → Prowlarr: `http://prowlarr:9696`, indexer `http://icvdb-torznab:8000/api`
 
 ---
 
-## Documentazione secondaria (linkare, non sostituire il README)
+## Vincoli agent
 
-| File | Uso |
-|------|-----|
-| docs/PRIORITA-INDEXER.md | Priority + sync dettagliato |
-| docs/RIMUOVI-DOPO-IMPORT.md | Remove da qBit |
-| docs/VIOLARR-E-REGEX.md | Violarr + regex |
-| docs/IMPORT-EXTRA-FILES-E-RISORSE.md | Extra files + video |
-
----
-
-## Vincoli per l’agent
-
-1. Non esporre Web UI con `ports:` (solo `expose`), eccetto 6881 di qBittorrent.
-2. Non reintrodurre nomi di request-manager legacy.
-3. Non usare frasi tipo “stesso di Radarr” nelle guide utente: duplicare i passi per Sonarr.
-4. Se aggiorni il compose, aggiorna tabella servizi in README e in questo file.
-5. Fonte di verità per l’utente umano = **README.md** dall’inizio alla fine.
+1. Documentare la pulizia downloads **solo** via qBittorrent Seeding Limits.
+2. Non dire che Radarr “elimina i file dopo l’import” come metodo principale.
+3. Istruzioni utente sempre passo-passo complete.
+4. Fonte umana = README.md.
