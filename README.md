@@ -28,7 +28,8 @@ Sull'host viene esposta **solo** la porta torrent di qBittorrent (`6881`).
 3. **Violarr** e altri indexer forniscono i risultati; **FlareSolverr** aiuta se c'è Cloudflare
 4. **qBittorrent** scarica
 5. Radarr/Sonarr organizzano in `Film/Nome (Anno)/` o `Serie TV/Nome (Anno)/Season XX/`
-6. **Jellyfin** riproduce
+6. Dopo l'import, Radarr/Sonarr **rimuovono** torrent e file da qBittorrent (niente seed prolungato)
+7. **Jellyfin** riproduce
 
 ---
 
@@ -72,71 +73,74 @@ docker compose up -d
 (?i)\b(eng|english)\b
 ```
 
-`MULTI` **non** è incluso (evita dual audio / lingue miste non solo IT).
-
-Usare le stesse regex in Radarr e Sonarr.
+`MULTI` **non** è incluso.
 
 ---
 
-## Priorità indexer (a parità di Custom Format)
+## Priorità indexer
 
-Numero **più basso** = priorità **più alta** (1–50).
+| Indexer | Priority |
+|---------|----------|
+| Violarr (ICVDB) | **5** |
+| Il Corsaro Blu | **10** |
+| 1337x | **25** |
+| Altri pubblici | **30–35** |
+| Poco affidabili | **40–50** |
 
-| Indexer | Priority | Motivo |
-|---------|----------|--------|
-| **Violarr (ICVDB)** | **5** | Contenuti italiani via ICVDB |
-| **Il Corsaro Blu** | **10** | Indexer italiano |
-| **1337x** | **25** | Pubblico ampio (fallback; spesso Cloudflare) |
-| Altri pubblici | **30–35** | Fallback secondario |
-| Poco affidabili | **40–50** | Ultima scelta |
+Imposta in Prowlarr → Indexers → Priority, poi **Sync App Indexers** su Radarr e Sonarr.  
+Guida: `docs/PRIORITA-INDEXER.md`
 
-### Come impostarle e sincronizzarle
+---
 
-1. **Prowlarr** → Indexers → apri ogni indexer → campo **Priority** → salva i valori della tabella.
-2. **Prowlarr** → Settings → Apps → sulla riga di **Radarr** clicca **Sync App Indexers**.
-3. **Prowlarr** → Settings → Apps → sulla riga di **Sonarr** clicca **Sync App Indexers**.
-4. Verifica in Radarr e Sonarr: Settings → Indexers → Priority uguale a Prowlarr.
+## Rimuovere i file da qBittorrent dopo l'import
 
-Guida completa passo-passo: **`docs/PRIORITA-INDEXER.md`**
+Se non ti interessa seedare (indexer pubblici, nessun ratio da difendere), attiva la rimozione automatica:
+
+### Radarr
+1. Settings → **Download Clients** → apri **qBittorrent**
+2. **Completed Download Handling** = **ON**
+3. **Remove** = **ON**
+4. Test → Save
+
+### Sonarr
+1. Settings → **Download Clients** → apri **qBittorrent**
+2. **Completed Download Handling** = **ON**
+3. **Remove** = **ON**
+4. Test → Save
+
+Effetto: download → import in `media/Film` o `Serie TV` → qBittorrent elimina torrent e file in `downloads`.
+
+Guida completa passo-passo: **`docs/RIMUOVI-DOPO-IMPORT.md`**
 
 ---
 
 ## Prowlarr + FlareSolverr
 
 1. API Key da Settings → General
-2. Aggiungi indexer dalla lista (1337x, Il Corsaro Blu, ecc.)
-3. FlareSolverr: Host `http://flaresolverr:8191`, tag `flaresolverr`
-4. Assegna il tag solo agli indexer che falliscono per Cloudflare (tipico: 1337x)
+2. Aggiungi indexer
+3. FlareSolverr Host: `http://flaresolverr:8191`, tag `flaresolverr` sugli indexer con Cloudflare
 
 ---
 
 ## Violarr (ICVDB)
 
-Documentazione: https://xbit18.github.io/violarr/
-
-1. Attendi il primo avvio: `docker logs -f icvdb-torznab`
-2. Apri la WebUI di Violarr
-3. Completa la prima configurazione
-4. In Violarr → Prowlarr:
+1. `docker logs -f icvdb-torznab` fino a pronto
+2. WebUI Violarr → collega Prowlarr:
    - URL Prowlarr: `http://prowlarr:9696`
-   - API Key di Prowlarr
    - URL indexer: `http://icvdb-torznab:8000/api`
-5. Verifica connessione → **Aggiungi Violarr a Prowlarr**
-6. In Prowlarr: Priority **5** → Save → Sync App Indexers su Radarr e Sonarr
+3. Aggiungi Violarr a Prowlarr → Priority **5** → Sync App Indexers
 
-Dettagli: `docs/VIOLARR-E-REGEX.md`
+Docs: https://xbit18.github.io/violarr/ · `docs/VIOLARR-E-REGEX.md`
 
 ---
 
 ## Radarr / Sonarr (sintesi)
 
 - Root: `/movies` e `/tv`
-- Naming con **anno** nelle cartelle
-- Import Extra Files ON: `srt,sub,idx,nfo,txt`
-- Profile `Italiano 1080p` (solo 1080p)
-- Custom Formats come sopra
-- Download client: `qbittorrent:8080` (categorie `radarr` / `sonarr`)
-- Indexer e Priority: solo da Prowlarr + Sync App Indexers
+- Naming con anno
+- Import Extra Files: `srt,sub,idx,nfo,txt`
+- Profile `Italiano 1080p`
+- Download client qBittorrent + **Remove ON** dopo import
 
 ---
 
@@ -150,14 +154,15 @@ Dettagli: `docs/VIOLARR-E-REGEX.md`
 
 ## Jellyfin
 
-- Libreria Film → `/media/Film`
-- Libreria Serie TV → `/media/Serie TV`
+- Film → `/media/Film`
+- Serie TV → `/media/Serie TV`
 
 ---
 
 ## Risorse
 
 - Video guida: https://youtu.be/-PQtE6Nb0Cw
-- Priorità indexer + sync: **`docs/PRIORITA-INDEXER.md`**
+- **Rimuovi da qBit dopo import:** `docs/RIMUOVI-DOPO-IMPORT.md`
+- Priorità indexer: `docs/PRIORITA-INDEXER.md`
 - Violarr + regex: `docs/VIOLARR-E-REGEX.md`
 - Import Extra Files: `docs/IMPORT-EXTRA-FILES-E-RISORSE.md`
