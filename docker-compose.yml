@@ -119,8 +119,8 @@ services:
   # ==================================================
   # SEERR
   # Interfaccia per richiedere film e serie.
-  # Successore ufficiale di Jellyseerr e Overseerr (merge 2026).
-  # Supporta Jellyfin, Plex e Emby. Invia richieste a Radarr e Sonarr.
+  # Invia le richieste a Radarr e Sonarr.
+  # Supporta Jellyfin (e altri media server).
   # ==================================================
   seerr:
     image: ghcr.io/seerr-team/seerr:latest
@@ -130,8 +130,6 @@ services:
       - LOG_LEVEL=info
       - TZ=${TZ}
     volumes:
-      # Se migri da Jellyseerr, puoi montare la vecchia cartella config:
-      # - ${CONFIG_DIR}/jellyseerr:/app/config
       - ${CONFIG_DIR}/seerr:/app/config
     expose:
       - "5055"                               # Web UI
