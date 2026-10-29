@@ -12,93 +12,39 @@ Stack Docker completo per gestire automaticamente **film** e **serie TV** con au
 | **Sonarr**       | Gestione automatica delle serie TV                                      | 8989          |
 | **Prowlarr**     | Gestore centralizzato degli indexer                                     | 9696          |
 | **Seerr**        | Interfaccia per richiedere film e serie                                 | 5055          |
-| **FlareSolverr** | Risolve i controlli Cloudflare (“Non sono un robot”) degli indexer     | 8191          |
+| **FlareSolverr** | Risolve i controlli Cloudflare degli indexer                            | 8191          |
+| **Violarr**      | Indexer Torznab ICVDB (contenuti italiani)                              | 8000          |
 
-Tutte le interfacce web sono accessibili **solo** attraverso la rete Docker `proxy-manager` (es. Nginx Proxy Manager).  
+Tutte le interfacce web sono accessibili **solo** attraverso la rete Docker `proxy-manager`.  
 Sull'host viene esposta **solo** la porta torrent di qBittorrent (`6881`).  
-**FlareSolverr non ha interfaccia web**: non va aggiunto al reverse proxy.
+**FlareSolverr** non ha interfaccia web pubblica da mettere nel reverse proxy.
 
 ---
 
-## Come funziona il flusso
+## Flusso
 
-1. Apri **Seerr** e richiedi un film o una serie.
-2. Seerr invia la richiesta a **Radarr** (film) o **Sonarr** (serie).
-3. Radarr/Sonarr chiedono a **Prowlarr** release in italiano e minimo 1080p.
-4. Se un indexer ha Cloudflare, **FlareSolverr** supera il controllo.
-5. **qBittorrent** scarica in `data/downloads/completed`.
-6. Radarr crea `Film/Nome Film (Anno)/` e rinomina il file (con eventuali `.srt`, `.nfo`, ecc.).
-7. Sonarr crea `Serie TV/Nome Serie (Anno)/Season 01/` e rinomina gli episodi.
-8. **Jellyfin** mostra i nuovi contenuti.
+1. **Seerr** → richiesta film/serie
+2. **Radarr** / **Sonarr** → cercano via **Prowlarr** (italiano + 1080p)
+3. **Violarr** e altri indexer forniscono i risultati; **FlareSolverr** aiuta se c'è Cloudflare
+4. **qBittorrent** scarica
+5. Radarr/Sonarr organizzano in `Film/Nome (Anno)/` o `Serie TV/Nome (Anno)/Season XX/`
+6. **Jellyfin** riproduce
 
 ---
 
-## Struttura cartelle
-
-```
-media-server/
-├── docker-compose.yml
-├── .env
-├── .gitignore
-├── README.md
-├── AGENT.md
-├── config/
-│   ├── jellyfin/
-│   ├── qbittorrent/
-│   ├── radarr/
-│   ├── sonarr/
-│   ├── prowlarr/
-│   └── seerr/
-└── data/
-    ├── downloads/incomplete/
-    ├── downloads/completed/
-    └── media/
-        ├── Film/Nome Film (2024)/
-        └── Serie TV/Nome Serie (2020)/Season 01/
-```
-
----
-
-## Installazione
-
-### 1. Rete Docker
+## Installazione rapida
 
 ```bash
 docker network create proxy-manager
-```
-
-### 2. Clona e prepara
-
-```bash
 git clone https://github.com/miketester10/media-server.git
 cd media-server
-
-mkdir -p config/{jellyfin,qbittorrent,radarr,sonarr,prowlarr,seerr}
-mkdir -p data/downloads/{incomplete,completed}
-mkdir -p data/media/Film
-mkdir -p "data/media/Serie TV"
-```
-
-### 3. File `.env`
-
-```env
-PUID=1001
-PGID=1001
-TZ=Europe/Rome
-CONFIG_DIR=./config
-DATA_DIR=./data
-```
-
-Trova PUID/PGID con: `id`
-
-### 4. Avvio
-
-```bash
+mkdir -p config/{jellyfin,qbittorrent,radarr,sonarr,prowlarr,seerr,violarr}
+mkdir -p data/downloads/{incomplete,completed} data/media/Film "data/media/Serie TV"
+# modifica .env (PUID/PGID)
 docker compose up -d
-docker compose ps
 ```
 
-### 5. Nginx Proxy Manager
+### Nginx Proxy Manager
 
 | Servizio    | Hostname interno | Porta |
 |-------------|------------------|-------|
@@ -108,166 +54,86 @@ docker compose ps
 | Sonarr      | sonarr           | 8989  |
 | Prowlarr    | prowlarr         | 9696  |
 | Seerr       | seerr            | 5055  |
-
-Non creare Proxy Host per FlareSolverr.
+| Violarr     | icvdb-torznab    | 8000  |
 
 ---
 
-## Configurazione servizi (ordine obbligatorio)
+## Custom Format regex (solo italiano, case-insensitive)
 
-### 1. qBittorrent
-
-1. Apri la Web UI e imposta username/password.
-2. Impostazioni → **Download**:
-   - Cartella salvataggio: `/downloads/completed`
-   - Incompleti: `/downloads/incomplete`
-3. **Connessione**: porta `6881`
-4. Salva.
-
-### 2. Prowlarr
-
-1. Settings → General → copia **API Key**.
-2. Indexers → Add Indexer → aggiungi gli indexer (Base URL già compilato; se fallisce prova un altro dominio dal menu).
-3. Settings → Indexers → sezione **FlareSolverr**:
-   - Name: `FlareSolverr`
-   - Tags: `flaresolverr`
-   - Host: `http://flaresolverr:8191`
-   - Test → Save
-4. Per ogni indexer bloccato da Cloudflare: apri l'indexer → Tags → aggiungi `flaresolverr` → Test → Save.
-
-### 3. Radarr (Film)
-
-#### Media Management
-
-1. Settings → Media Management
-2. Root Folder: `/movies`
-3. Rename Movies: ON · Replace Illegal Characters: ON
-4. Standard Movie Format: `{Movie Title} ({Release Year})`
-5. Movie Folder Format: `{Movie Title} ({Release Year})`
-6. **Import Extra Files**: ON  
-   Estensioni: `srt,sub,idx,nfo,txt`
-7. Save
-
-#### Quality Profile `Italiano 1080p`
-
-Abilita solo: Bluray-1080p, WEBDL-1080p, WEBRip-1080p, HDTV-1080p.  
-Disabilita 720p e inferiori. Imposta come default.
-
-#### Custom Formats
-
-**Italiano** – Release Title regex (case-insensitive):
+**Italiano** (+100):
 
 ```regex
-(?i)\b(ita|italian|italiano|subita|multi)\b
+(?i)\b(ita|italian|italiano|subita)\b
 ```
 
-Score: **+100**
-
-**Non Italiano** – Release Title regex:
+**Non Italiano** (-200):
 
 ```regex
 (?i)\b(eng|english)\b
 ```
 
-Score: **-200**
+`MULTI` **non** è incluso (evita dual audio / lingue miste non solo IT).
 
-Nel profilo `Italiano 1080p`:
-- Minimum Custom Format Score: `50`
-- Upgrade Until Custom Format Score: `100`
-
-#### Download Client
-
-- Host: `qbittorrent` · Port: `8080` · Category: `radarr`
-- Username/password di qBittorrent → Test → Save
-
-#### Collegamento Prowlarr → Radarr
-
-In Prowlarr → Settings → Apps → Add → Radarr:
-- Prowlarr Server: `http://prowlarr:9696`
-- Radarr Server: `http://radarr:7878`
-- API Key di Radarr → Test → Save → Sync App Indexers
-
-### 4. Sonarr (Serie TV)
-
-#### Media Management
-
-1. Root Folder: `/tv`
-2. Rename Episodes: ON · Replace Illegal Characters: ON
-3. Standard Episode Format: `{Series Title} - S{season:00}E{episode:00} - {Episode Title}`
-4. Season Folder Format: `Season {season:00}`
-5. Series Folder Format: `{Series Title} ({Series Year})`
-6. **Import Extra Files**: ON  
-   Estensioni: `srt,sub,idx,nfo,txt`
-7. Save
-
-#### Quality Profile + Custom Formats
-
-Stessi valori di Radarr:
-- Profilo `Italiano 1080p` (solo qualità 1080p)
-- Custom Format Italiano: `(?i)\b(ita|italian|italiano|subita|multi)\b` → +100
-- Custom Format Non Italiano: `(?i)\b(eng|english)\b` → -200
-- Minimum Score 50 · Upgrade Until 100
-
-#### Download Client
-
-- Host: `qbittorrent` · Port: `8080` · Category: `sonarr` → Test → Save
-
-#### Collegamento Prowlarr → Sonarr
-
-In Prowlarr → Settings → Apps → Add → Sonarr:
-- Prowlarr Server: `http://prowlarr:9696`
-- Sonarr Server: `http://sonarr:8989`
-- API Key di Sonarr → Test → Save → Sync App Indexers
-
-### 5. Seerr
-
-1. Apri Seerr e segui la procedura guidata.
-2. **Jellyfin**: URL `http://jellyfin:8096` + utente admin.
-3. **Radarr**: URL `http://radarr:7878`, API Key, Root `/movies`, profilo `Italiano 1080p`.
-4. **Sonarr**: URL `http://sonarr:8989`, API Key, Root `/tv`, profilo `Italiano 1080p`.
-5. Completa e salva.
-
-### 6. Jellyfin
-
-1. Libreria **Film** → cartella `/media/Film`
-2. Libreria **Serie TV** → cartella `/media/Serie TV`
+Usare le stesse regex in Radarr e Sonarr.
 
 ---
 
-## Test finale
+## Prowlarr + FlareSolverr
 
-1. In **Seerr** richiedi un film.
-2. Controlla Radarr (Queue) → qBittorrent (categoria `radarr`) → cartella `data/media/Film/Nome (Anno)/`.
-3. Ripeti con una serie in Sonarr / `Serie TV/Nome (Anno)/Season 01/`.
-4. In Prowlarr, Test su un indexer con tag `flaresolverr`: deve essere verde.
+1. API Key da Settings → General
+2. Aggiungi indexer dalla lista
+3. FlareSolverr: Host `http://flaresolverr:8191`, tag `flaresolverr`
+4. Assegna il tag solo agli indexer che falliscono per Cloudflare
 
 ---
 
-## Comandi utili
+## Violarr (ICVDB)
 
-```bash
-docker compose up -d
-docker compose down
-docker compose pull && docker compose up -d
-docker compose logs -f radarr
-docker compose logs -f seerr
-docker compose logs -f flaresolverr
-docker compose ps
-```
+Documentazione: https://xbit18.github.io/violarr/
+
+1. Attendi il primo avvio: `docker logs -f icvdb-torznab`
+2. Apri la WebUI di Violarr
+3. Completa la prima configurazione
+4. In Violarr → Prowlarr:
+   - URL Prowlarr: `http://prowlarr:9696`
+   - API Key di Prowlarr
+   - URL indexer: `http://icvdb-torznab:8000/api`
+5. Verifica connessione → **Aggiungi Violarr a Prowlarr**
+6. In Prowlarr deve comparire l'indexer Violarr → Test
+
+Guida dettagliata: `docs/VIOLARR-E-REGEX.md`
+
+---
+
+## Radarr / Sonarr (sintesi)
+
+- Root: `/movies` e `/tv`
+- Naming con **anno** nelle cartelle
+- Import Extra Files ON: `srt,sub,idx,nfo,txt`
+- Profile `Italiano 1080p` (solo 1080p)
+- Custom Formats come sopra
+- Download client: `qbittorrent:8080` (categorie `radarr` / `sonarr`)
+- Collegati da Prowlarr → Apps
+
+---
+
+## Seerr
+
+- Jellyfin: `http://jellyfin:8096`
+- Radarr: `http://radarr:7878`, root `/movies`, profile `Italiano 1080p`
+- Sonarr: `http://sonarr:8989`, root `/tv`, profile `Italiano 1080p`
+
+---
+
+## Jellyfin
+
+- Libreria Film → `/media/Film`
+- Libreria Serie TV → `/media/Serie TV`
 
 ---
 
 ## Risorse
 
-- Video guida utile (stack ARR / media server): https://youtu.be/-PQtE6Nb0Cw
-- Dettaglio Import Extra Files: file `docs/IMPORT-EXTRA-FILES-E-RISORSE.md` nel repo
-
----
-
-## Note
-
-- `config/` e `data/` non sono versionati (vedi `.gitignore`).
-- Cartelle film/serie includono **sempre l'anno** nel nome.
-- Regex Custom Format con `(?i)` = **case-insensitive** (ita, ITA, Italiano, MULTI, ecc.).
-- `MULTI` spesso indica dual audio (es. ITA+ENG). Se vuoi solo italiano “puro”, togli `multi` dalla regex.
-- FlareSolverr non richiede l'installazione di Cloudflare sul server.
+- Video guida: https://youtu.be/-PQtE6Nb0Cw
+- Import Extra Files: `docs/IMPORT-EXTRA-FILES-E-RISORSE.md`
+- Violarr + regex: `docs/VIOLARR-E-REGEX.md`
