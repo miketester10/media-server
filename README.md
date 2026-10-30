@@ -97,7 +97,42 @@ mkdir -p config/jellyfin config/qbittorrent config/radarr config/sonarr config/p
 mkdir -p data/downloads/incomplete data/downloads/completed data/media/Film "data/media/Serie TV"
 ```
 
-### 4.4 `.env`
+### 4.4 Permessi cartella Seerr (importante)
+
+L’immagine **Seerr** esegue Node **dentro** il container come utente **UID 1000 / GID 1000**.
+
+Non usa le variabili `PUID` / `PGID` del file `.env` (quelle valgono per le immagini linuxserver tipo Radarr, Sonarr, qBittorrent).
+
+Se sul server il tuo utente è **1001:1001** (o un altro ID diverso da 1000) e la cartella `config/seerr` è di proprietà di 1001, Seerr **non riesce a scrivere** la config e il container **va in errore e si riavvia in loop**.
+
+**Prima** di `docker compose up -d` (o subito se Seerr è già in crash):
+
+```bash
+sudo chown -R 1000:1000 config/seerr
+```
+
+Se sei nella home e il path completo è diverso:
+
+```bash
+sudo chown -R 1000:1000 ~/media-server/config/seerr
+```
+
+Poi:
+
+```bash
+docker compose up -d seerr
+# oppure, se era già avviato:
+docker compose restart seerr
+```
+
+Verifica che non riavvii in loop:
+
+```bash
+docker compose ps seerr
+docker compose logs -f seerr
+```
+
+### 4.5 `.env`
 
 ```env
 PUID=1000
@@ -107,7 +142,9 @@ CONFIG_DIR=./config
 DATA_DIR=./data
 ```
 
-### 4.5 Avvio
+Se il tuo utente host è 1001, puoi tenere `PUID=1001` e `PGID=1001` per Radarr/Sonarr/qBittorrent/Prowlarr: **Seerr resta a 1000:1000 sulla sola cartella `config/seerr`** (comando `chown` sopra).
+
+### 4.6 Avvio
 
 ```bash
 docker compose up -d
@@ -188,24 +225,11 @@ docker logs -f icvdb-torznab
 
 In Violarr apri **Impostazioni** → **Elaborazione risultati**.
 
-1. Seleziona **Italiano preferito**  
-   (mostra prima le release probabilmente italiane, **senza** eliminare le altre).
-
-   | Opzione | Quando usarla |
-   |---------|----------------|
-   | Senza filtri | Non consigliata (vede anche cinese/eng senza priorità) |
-   | **Italiano preferito** | **Consigliata** – bilanciata |
-   | Solo italiano | Più stretta: esclude ciò che non ha indicatore IT esplicito |
-   | Personalizzato | Solo se definisci regole tue |
-
-2. Attiva **Correggi il riconoscimento dei sottotitoli italiani** (ON).  
-   Evita che release con **solo sottotitoli** italiani vengano trattate come se avessero **audio** italiano.
-
+1. Seleziona **Italiano preferito**.
+2. Attiva **Correggi il riconoscimento dei sottotitoli italiani** (ON).
 3. Clicca **Salva elaborazione risultati**.
 
-Il filtro “duro” resta nei Custom Format di Radarr/Sonarr (regex senza `MULTI`).
-
-Dettagli extra: [`docs/VIOLARR-E-REGEX.md`](docs/VIOLARR-E-REGEX.md)
+Dettagli: [`docs/VIOLARR-E-REGEX.md`](docs/VIOLARR-E-REGEX.md)
 
 ---
 
@@ -261,9 +285,26 @@ Guida: [`docs/RIMUOVI-DOPO-IMPORT.md`](docs/RIMUOVI-DOPO-IMPORT.md)
 
 ## 15. Seerr
 
-- Jellyfin `http://jellyfin:8096`
-- Radarr `http://radarr:7878`, root `/movies`, profile `Italiano 1080p`
-- Sonarr `http://sonarr:8989`, root `/tv`, profile `Italiano 1080p`
+### 15.1 Se il container si riavvia in loop (permessi)
+
+Seerr gira come **1000:1000** dentro il container. Se `config/seerr` appartiene a un altro UID (es. **1001** del tuo utente host), Seerr crasha.
+
+```bash
+sudo chown -R 1000:1000 config/seerr
+docker compose restart seerr
+docker compose logs -f seerr
+```
+
+Quando i log non mostrano più errori di scrittura/permission e `docker compose ps` risulta **Up** (non Restarting), puoi aprire la WebUI.
+
+### 15.2 Configurazione servizi
+
+1. Apri Seerr nel browser.
+2. Segui la procedura guidata.
+3. **Jellyfin**: URL `http://jellyfin:8096` + utente admin Jellyfin.
+4. **Radarr**: URL `http://radarr:7878`, API Key di Radarr, root `/movies`, profile `Italiano 1080p`.
+5. **Sonarr**: URL `http://sonarr:8989`, API Key di Sonarr, root `/tv`, profile `Italiano 1080p`.
+6. Completa e salva.
 
 ---
 
@@ -299,15 +340,17 @@ Video: https://youtu.be/-PQtE6Nb0Cw
 ```bash
 docker compose up -d
 docker compose ps
-docker compose logs -f radarr
+docker compose logs -f seerr
+sudo chown -R 1000:1000 config/seerr
+docker compose restart seerr
 docker logs -f icvdb-torznab
-docker compose pull && docker compose up -d
 ```
 
 ---
 
 ## Note finali
 
+- **Seerr**: cartella config deve essere **1000:1000** (`chown`), anche se PUID host è 1001
 - Regex italiano **senza** `MULTI`
 - Pulizia downloads = **qBittorrent Seeding Limits**
 - Violarr: **Italiano preferito** + correzione sottotitoli IT
