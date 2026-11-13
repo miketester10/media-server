@@ -47,6 +47,10 @@ Stack per film e serie TV in **italiano**, qualità minima **1080p**, tutto in D
 
 ## 2. Come funziona il flusso
 
+![Media Server — Flusso Automatizzato](docs/media-server-flusso-automatizzato.jpg)
+
+*Diagramma del flusso automatizzato (Docker · Italiano preferito · qualità minima 1080p)*
+
 1. Apri **Seerr** e clicchi **Request** su un film o una serie.
 2. Seerr avvisa **Radarr** (film) o **Sonarr** (serie).
 3. Radarr/Sonarr chiedono a **Prowlarr**: “trovami release in italiano, minimo 1080p”.
