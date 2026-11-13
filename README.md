@@ -47,7 +47,7 @@ Stack per film e serie TV in **italiano**, qualità minima **1080p**, tutto in D
 
 ## 2. Come funziona il flusso
 
-![Media Server — Flusso Automatizzato](docs/media-server-flusso-automatizzato.jpg)
+![Media Server — Flusso Automatizzato](docs/057111A4-9FDB-4280-80A8-3A67CC64875A.png)
 
 *Diagramma del flusso automatizzato (Docker · Italiano preferito · qualità minima 1080p)*
 
